@@ -117,6 +117,19 @@ export function createNetworkView(container, graph, options) {
     return CHILD_ICON_SIZE / 2;
   }
 
+  function childIconAssetUrl(imagePath) {
+    return imagePath ? `/assets/${imagePath}` : null;
+  }
+
+  function bindSvgImageHref(imageSelection, urlFn) {
+    imageSelection.each(function (d) {
+      const url = urlFn(d);
+      const img = d3.select(this);
+      img.attr("href", url);
+      img.attr("xlink:href", url);
+    });
+  }
+
   function syncChildDeliverablePositions(nodes) {
     const byParent = new Map();
     for (const n of childNodes(nodes)) {
@@ -644,9 +657,6 @@ export function createNetworkView(container, graph, options) {
     const h = height();
     const cx = w / 2;
     const cy = h / 2;
-    const tagList = [...new Set(nodes.flatMap((n) => n.tags))];
-    const tagIndex = new Map(tagList.map((t, i) => [t, i]));
-
     timelineLayer.selectAll("*").remove();
 
     for (const n of nodes) {
@@ -690,13 +700,7 @@ export function createNetworkView(container, graph, options) {
         layoutUndatedColumn(undated.filter((n) => !n._userPinned), undatedX, h * 0.12, degrees);
         renderTimelineAxis([], axisY, left, left, undatedX, true);
       }
-    } else if (layoutMode === "theme") {
-      for (const n of nodes) {
-        if (n._userPinned) continue;
-        n.fx = null;
-        n.fy = null;
-      }
-    } else if (layoutMode === "network") {
+    } else {
       applyNetworkSeedLayout(mainNodes(nodes), w, h);
     }
 
@@ -722,144 +726,50 @@ export function createNetworkView(container, graph, options) {
       return { simulation, simLinks };
     }
 
-    if (layoutMode === "network") {
-      const simNodes = mainNodes(nodes);
-      simulation = d3
-        .forceSimulation(simNodes)
-        .force(
-          "link",
-          d3
-            .forceLink(simLinks)
-            .id((d) => d.id)
-            .distance((l) => (l.type === "thematic" ? 55 : 65))
-            .strength(0.12)
-        )
-        .force("charge", d3.forceManyBody().strength(-35))
-        .force(
-          "x",
-          d3
-            .forceX((d) => d.fx ?? d.x ?? cx)
-            .strength((d) => (d.fx != null ? 0.85 : 0.02))
-        )
-        .force(
-          "y",
-          d3
-            .forceY((d) => d.fy ?? d.y ?? cy)
-            .strength((d) => (d.fy != null ? 0.85 : 0.02))
-        )
-        .force("collide", d3.forceCollide().radius((d) => radiusFor(d, degrees) + 6))
-        .alpha(0.55)
-        .alphaDecay(0.08);
-
-      simulation.on("end", () => {
-        for (const n of simNodes) {
-          if (!n._userPinned && n.fx != null) {
-            n.fx = n.x;
-            n.fy = n.y;
-          }
-        }
-        syncChildDeliverablePositions(nodes);
-        simulation.stop();
-      });
-
-      return { simulation, simLinks };
-    }
-
+    const simNodes = mainNodes(nodes);
     simulation = d3
-      .forceSimulation(mainNodes(nodes))
+      .forceSimulation(simNodes)
       .force(
         "link",
         d3
           .forceLink(simLinks)
           .id((d) => d.id)
-          .distance((l) => (l.type === "thematic" ? 50 : 60))
-          .strength(0.2)
+          .distance((l) => (l.type === "thematic" ? 55 : 65))
+          .strength(0.12)
       )
-      .force("charge", d3.forceManyBody().strength(-90))
-      .force("center", d3.forceCenter(cx, cy).strength(0.06))
-      .force("collide", d3.forceCollide().radius((d) => radiusFor(d, degrees) + 10));
-
-    if (layoutMode === "theme" && tagList.length) {
-      simulation.force(
-        "tagX",
+      .force("charge", d3.forceManyBody().strength(-35))
+      .force(
+        "x",
         d3
-          .forceX((d) => {
-            const t = d.tags[0];
-            if (!t) return cx;
-            const ix = tagIndex.get(t) ?? 0;
-            return w * 0.15 + (ix / Math.max(1, tagList.length - 1)) * w * 0.7;
-          })
-          .strength(0.08)
-      );
-      simulation.force(
-        "tagY",
+          .forceX((d) => d.fx ?? d.x ?? cx)
+          .strength((d) => (d.fx != null ? 0.85 : 0.02))
+      )
+      .force(
+        "y",
         d3
-          .forceY((d) => {
-            const extra = d.tags.length > 1 ? (d.tags.length - 1) * 18 : 0;
-            return cy + extra;
-          })
-          .strength(0.06)
-      );
-    } else {
-      simulation.force("tagX", null);
-      simulation.force("tagY", null);
-    }
+          .forceY((d) => d.fy ?? d.y ?? cy)
+          .strength((d) => (d.fy != null ? 0.85 : 0.02))
+      )
+      .force("collide", d3.forceCollide().radius((d) => radiusFor(d, degrees) + 6))
+      .alpha(0.55)
+      .alphaDecay(0.08);
 
     simulation.on("end", () => {
+      for (const n of simNodes) {
+        if (!n._userPinned && n.fx != null) {
+          n.fx = n.x;
+          n.fy = n.y;
+        }
+      }
+      syncChildDeliverablePositions(nodes);
       simulation.stop();
     });
 
     return { simulation, simLinks };
   }
 
-  function renderCompoundBoxes(nodes) {
-    const childrenByParent = new Map();
-    for (const n of nodes) {
-      if (!n.parentId) continue;
-      if (!childrenByParent.has(n.parentId)) childrenByParent.set(n.parentId, []);
-      childrenByParent.get(n.parentId).push(n);
-    }
-    const groups = [...childrenByParent.entries()]
-      .filter(([, children]) => !children.every((c) => c.imagePath))
-      .map(([parentId, children]) => ({
-        parentId,
-        children,
-      }));
-
-    if (!groups.length) {
-      compoundLayer.selectAll("g.compound").remove();
-      return;
-    }
-
-    const compoundSelection = compoundLayer.selectAll("g.compound").data(groups, (d) => d.parentId);
-    compoundSelection.exit().remove();
-    const enter = compoundSelection.enter().append("g").attr("class", "compound");
-    enter.append("rect").attr("class", "compound-box");
-    enter.append("text").attr("class", "compound-label");
-    compoundSelection
-      .merge(enter)
-      .each(function (d) {
-        const pts = d.children.filter((c) => c.x != null);
-        if (!pts.length) return;
-        const pad = 28;
-        const xs = pts.map((c) => c.x);
-        const ys = pts.map((c) => c.y);
-        const x0 = Math.min(...xs) - pad;
-        const x1 = Math.max(...xs) + pad;
-        const y0 = Math.min(...ys) - pad;
-        const y1 = Math.max(...ys) + pad;
-        d3.select(this)
-          .select("rect")
-          .attr("x", x0)
-          .attr("y", y0)
-          .attr("width", x1 - x0)
-          .attr("height", y1 - y0);
-        d3.select(this)
-          .select("text")
-          .attr("x", x0 + 8)
-          .attr("y", y0 + 14)
-          .text(d.parentId);
-      });
+  function renderCompoundBoxes() {
+    compoundLayer.selectAll("g.compound").remove();
   }
 
   function ensurePatterns(nodes) {
@@ -957,7 +867,12 @@ export function createNetworkView(container, graph, options) {
     ensurePatterns(roots);
 
     const { simulation: sim, simLinks } = applyLayout(layoutMode, nodes, edges, degreesCache);
-    syncChildDeliverablePositions(nodes);
+    const showChildDeliverables = layoutMode !== "timeline";
+    if (showChildDeliverables) {
+      syncChildDeliverablePositions(nodes);
+    }
+    childNodeLayer.attr("display", showChildDeliverables ? null : "none");
+    childLinkLayer.attr("display", showChildDeliverables ? null : "none");
 
     linkSelection = linkLayer.selectAll("line.link").data(simLinks, (d) => d.id);
     linkSelection.exit().remove();
@@ -976,8 +891,8 @@ export function createNetworkView(container, graph, options) {
         return m ? `url(#${m})` : null;
       });
 
-    const deliverables = childNodes(nodes);
-    const childLinks = childLinkData(nodes);
+    const deliverables = showChildDeliverables ? childNodes(nodes) : [];
+    const childLinks = showChildDeliverables ? childLinkData(nodes) : [];
 
     childLinkSelection = childLinkLayer
       .selectAll("line.child-link")
@@ -1027,9 +942,9 @@ export function createNetworkView(container, graph, options) {
     childNodeSelection = childEnter.merge(childNodeSelection);
 
     const half = CHILD_ICON_SIZE / 2;
-    childNodeSelection
-      .select("image.child-icon")
-      .attr("href", (d) => (d.imagePath ? `/assets/${d.imagePath}` : null))
+    const childIcons = childNodeSelection.select("image.child-icon");
+    bindSvgImageHref(childIcons, (d) => childIconAssetUrl(d.imagePath));
+    childIcons
       .attr("x", -half)
       .attr("y", -half)
       .attr("width", CHILD_ICON_SIZE)
@@ -1064,7 +979,8 @@ export function createNetworkView(container, graph, options) {
         updateHighlight();
       });
 
-    labelSelection = labelLayer.selectAll("text.node-label").data(nodes, (d) => d.id);
+    const labelNodes = showChildDeliverables ? nodes : roots;
+    labelSelection = labelLayer.selectAll("text.node-label").data(labelNodes, (d) => d.id);
     labelSelection.exit().remove();
     const labelEnter = labelSelection
       .enter()
@@ -1079,27 +995,30 @@ export function createNetworkView(container, graph, options) {
       if (getState().layoutMode !== "timeline") {
         roots.forEach(clampNodeInView);
       }
-      syncChildDeliverablePositions(nodes);
+      if (showChildDeliverables) {
+        syncChildDeliverablePositions(nodes);
+      }
       nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
-      childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
+      if (showChildDeliverables) {
+        childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
+        updateChildLinkGeometry();
+      }
       syncLabelPositions(labelSelection);
       updateLinkGeometry();
-      updateChildLinkGeometry();
       renderCompoundBoxes(nodes);
     });
 
     if (getState().layoutMode === "timeline") {
-      syncChildDeliverablePositions(nodes);
       nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
-      childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
       syncLabelPositions(labelSelection);
       updateLinkGeometry();
-      updateChildLinkGeometry();
       renderCompoundBoxes(nodes);
     }
 
-    childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
-    updateChildLinkGeometry();
+    if (showChildDeliverables) {
+      childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
+      updateChildLinkGeometry();
+    }
 
     updateHighlight();
 
