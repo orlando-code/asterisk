@@ -1,0 +1,11 @@
+As I put this together with limited time, I had to deprioritise lots of things which would make it more useful and relevant into the future.
+- **Integrate with [Asterisk's GitHub Repo](https://github.com/asterisk-labs)**
+  - Richer metadata records for projects e.g. commits/activity, popularity, codebase size, tests status, contributors
+  - Live portfolio status – time since last commit, PR count
+  - Automate population of new projects into network via regular 'new repo' hook, along with inferred network edge suggestions 
+- **Visualisation**
+  - Connect directly to interactive dashboards/visualisations/papers
+  - Generally prettify/fully align with Asterisk's website
+  - Filter by stakeholder/collaborator
+  - Anyone want a Gantt chart??
+  - Animate progress/time. Watch nodes inflate with more edges, clones/forks, stars etc.
