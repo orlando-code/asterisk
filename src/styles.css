@@ -287,11 +287,9 @@ select {
 }
 
 .node-label {
-  font-size: 14px;
   font-weight: 600;
   fill: var(--ink);
   stroke: #fff;
-  stroke-width: 3px;
   paint-order: stroke;
 }
 
