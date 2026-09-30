@@ -52,3 +52,21 @@ For now, keep hosting local and for Desktop (don;t worry about mobile). It's onl
 - Flag ambiguities
 - Scaffold repo, viewer, README
 - Concise code: inline commends for non-obvious syntax/parsing and top-of-file/function docstrings
+
+# Network interactivity and aesthetics
+
+### Node manipulation
+- Nodes should be closer together, and less repulsive
+- Dragging one node should only move that node and any connected: currently others are drifting when an unrelated node is dragged (due to the sim still running on drag in bindDrag)
+- After dragging, nodes should be pinned in new position
+
+### Timeline view
+Nodes should be spaced proportional to the time in between them, rather than evenly ie. Jan 2020 at far left, big space until 2024, then nodes closer in time. Stagger rows to reduce overlap if necessary. Undated nodes should appear in a side column.
+Indicate the timeline itself via a thin horizontal line with any marked month e.g. Jan-2020 marked if there is a node there e.g. Jan-2020 then nothing marked until e.g. Jan-2024, Feb-2024 etc. The timeline should span from the first date and end with an arrow towards the right indicating the future.
+
+### Node aesthetics
+Arrows on the end of edges should have their tips touching the outer rim of the nodes: currently they are within the nodes.
+Nodes should not escape the default view frame.
+
+### Language tags
+There should be a set of checkboxes for each of the represented languages. Selecting any combination of these buttons should highlight the nodes which have these language(s). All selected by default, with 'clear all'/'select all' buttons
