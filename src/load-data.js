@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { parseLinksCell, resolveShortTitle, normaliseTitleKey } from "./parse-links.js";
+import { parseLanguageList } from "./languages.js";
 
 /**
  * @typedef {Object} ProjectNode
@@ -11,6 +12,7 @@ import { parseLinksCell, resolveShortTitle, normaliseTitleKey } from "./parse-li
  * @property {number|null} durationMonths
  * @property {string} collaborators
  * @property {string} language
+ * @property {string[]} languages
  * @property {string} category
  * @property {string[]} tags
  * @property {string} description
@@ -86,6 +88,7 @@ export function buildGraphFromCsv(csvText) {
       durationMonths: parseDuration(row.Duration),
       collaborators: String(row.Collaborators || "").trim(),
       language: String(row.Language || "").trim(),
+      languages: parseLanguageList(row.Language),
       category: String(row.Category || "").trim(),
       tags: parseTags(row.Tags),
       description: String(row.Description || "").trim(),
