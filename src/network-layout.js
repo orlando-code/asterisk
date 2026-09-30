@@ -42,6 +42,7 @@ export function applyNetworkSeedLayout(nodes, w, h) {
 
   let fallbackIndex = 0;
   for (const n of nodes) {
+    if (n.parentId) continue;
     if (n._userPinned) continue;
     const seed = NETWORK_SEEDS[n.shortTitle] || NETWORK_SEEDS[n.id];
     let tier = MAX_TIER;
