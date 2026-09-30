@@ -48,6 +48,14 @@ function parseDuration(raw) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Default icons for deliverable short titles when Image path is empty in CSV. */
+const DELIVERABLE_ICON_BY_SHORT_TITLE = {
+  Preprint: "node_icons/icons8-paper-64.png",
+  Demo: "node_icons/icons8-browser-100.png",
+  Youtube: "node_icons/icons8-youtube-100.png",
+  Colab: "node_icons/icons8-google-colab-96.png",
+};
+
 /**
  * @param {string} csvText
  * @returns {{ nodes: ProjectNode[], edges: GraphEdge[], warnings: string[] }}
@@ -139,6 +147,12 @@ export function buildGraphFromCsv(csvText) {
         undirected: Boolean(edge.undirected),
       });
     }
+  }
+
+  for (const node of nodes) {
+    if (!node.parentId || node.imagePath) continue;
+    const fallback = DELIVERABLE_ICON_BY_SHORT_TITLE[node.shortTitle];
+    if (fallback) node.imagePath = fallback;
   }
 
   return { nodes, edges, warnings };
