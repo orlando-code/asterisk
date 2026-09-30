@@ -1,5 +1,6 @@
 /** GitHub linguist-style colours (approximate). */
 const LINGUIST = {
+  TBC: "#8b949e",
   Python: "#3572A5",
   JavaScript: "#f1e05a",
   TypeScript: "#3178c6",
@@ -10,6 +11,10 @@ const LINGUIST = {
   Java: "#b07219",
   Rust: "#dea584",
   Go: "#00ADD8",
+  HTML: "#e34c26",
+  CSS: "#663399",
+  Shell: "#89e051",
+  Ruby: "#701516",
 };
 
 /**

@@ -12,6 +12,12 @@ import {
   createTimelineXScale,
 } from "./dates.js";
 import { nodeMatchesLanguageFilter } from "./languages.js";
+import { applyNetworkSeedLayout } from "./network-layout.js";
+import {
+  CATEGORY_PROJECT,
+  CATEGORY_INTERNAL,
+  CATEGORY_DISTRIBUTION,
+} from "./categories.js";
 
 const DIM_OPACITY = 0.14;
 const NEIGHBOUR_OPACITY = 0.78;
@@ -150,9 +156,10 @@ export function createNetworkView(container, graph, options) {
   }
 
   function categoryHidden(node) {
-    const { showProject, showInternal } = getState();
-    if (node.category === "Project" && !showProject) return true;
-    if (node.category === "Internal" && !showInternal) return true;
+    const { showProject, showInternal, showDistribution } = getState();
+    if (node.category === CATEGORY_PROJECT && !showProject) return true;
+    if (node.category === CATEGORY_INTERNAL && !showInternal) return true;
+    if (node.category === CATEGORY_DISTRIBUTION && !showDistribution) return true;
     return false;
   }
 
@@ -519,6 +526,8 @@ export function createNetworkView(container, graph, options) {
         n.fx = null;
         n.fy = null;
       }
+    } else if (layoutMode === "network") {
+      applyNetworkSeedLayout(nodes, w, h);
     }
 
     const simLinks = resolveSimLinks(edges, nodes);
@@ -538,6 +547,47 @@ export function createNetworkView(container, graph, options) {
         if (n.fx != null) n.x = n.fx;
         if (n.fy != null) n.y = n.fy;
       });
+      return { simulation, simLinks };
+    }
+
+    if (layoutMode === "network") {
+      simulation = d3
+        .forceSimulation(nodes)
+        .force(
+          "link",
+          d3
+            .forceLink(simLinks)
+            .id((d) => d.id)
+            .distance((l) => (l.type === "thematic" ? 55 : 65))
+            .strength(0.12)
+        )
+        .force("charge", d3.forceManyBody().strength(-35))
+        .force(
+          "x",
+          d3
+            .forceX((d) => d.fx ?? d.x ?? cx)
+            .strength((d) => (d.fx != null ? 0.85 : 0.02))
+        )
+        .force(
+          "y",
+          d3
+            .forceY((d) => d.fy ?? d.y ?? cy)
+            .strength((d) => (d.fy != null ? 0.85 : 0.02))
+        )
+        .force("collide", d3.forceCollide().radius((d) => radiusFor(d, degrees) + 6))
+        .alpha(0.55)
+        .alphaDecay(0.08);
+
+      simulation.on("end", () => {
+        for (const n of nodes) {
+          if (!n._userPinned && n.fx != null) {
+            n.fx = n.x;
+            n.fy = n.y;
+          }
+        }
+        simulation.stop();
+      });
+
       return { simulation, simLinks };
     }
 

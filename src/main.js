@@ -8,6 +8,7 @@ const state = {
   layoutMode: "network",
   showProject: true,
   showInternal: true,
+  showDistribution: true,
   selectedLanguages: new Set(),
   languageCount: 0,
 };
@@ -145,6 +146,11 @@ async function main() {
 
   document.getElementById("filter-internal")?.addEventListener("change", (e) => {
     state.showInternal = e.target.checked;
+    view.refreshFilters();
+  });
+
+  document.getElementById("filter-distribution")?.addEventListener("change", (e) => {
+    state.showDistribution = e.target.checked;
     view.refreshFilters();
   });
 

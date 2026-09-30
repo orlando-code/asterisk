@@ -1,4 +1,5 @@
 import { palette, statusColors } from "./theme.js";
+import { categoryColor, collectCategories } from "./categories.js";
 
 const durationBins = [
   { label: "No duration", test: (n) => n == null, color: "#b8c4cc" },
@@ -16,12 +17,13 @@ export function nodeColor(node, mode) {
     case "status":
       return statusColors[node.status] || palette.muted;
     case "category":
-      return node.category === "Project" ? palette.sea : palette.olive;
+      return categoryColor(node.category);
     case "public":
       return node.public ? palette.fern : palette.muted;
     case "language": {
-      const lang = (node.language || "").split(",")[0]?.trim();
+      const lang = (node.languages && node.languages[0]) || (node.language || "").split(",")[0]?.trim();
       if (!lang) return "#c5cdd3";
+      if (lang === "TBC") return "#8b949e";
       return stringHueColor(lang);
     }
     case "duration": {
@@ -51,10 +53,10 @@ export function legendEntries(mode, nodes) {
       return statuses.map((s) => ({ label: s, color: statusColors[s] || palette.muted }));
     }
     case "category":
-      return [
-        { label: "Project", color: palette.sea },
-        { label: "Internal", color: palette.olive },
-      ];
+      return collectCategories(nodes).map((c) => ({
+        label: c,
+        color: categoryColor(c),
+      }));
     case "public":
       return [
         { label: "Public", color: palette.fern },
@@ -65,12 +67,14 @@ export function legendEntries(mode, nodes) {
     case "language": {
       const langs = new Set();
       for (const n of nodes) {
-        for (const part of (n.language || "").split(",")) {
-          const t = part.trim();
-          if (t) langs.add(t);
+        for (const part of n.languages || []) {
+          if (part) langs.add(part);
         }
       }
-      return [...langs].sort().map((l) => ({ label: l, color: stringHueColor(l) }));
+      return [...langs].sort().map((l) => ({
+        label: l,
+        color: l === "TBC" ? "#8b949e" : stringHueColor(l),
+      }));
     }
     default:
       return [];
