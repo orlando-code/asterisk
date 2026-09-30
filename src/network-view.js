@@ -5,14 +5,22 @@
 import * as d3 from "d3";
 import { nodeColor, legendEntries } from "./encode.js";
 import { palette } from "./theme.js";
+import {
+  parseStartDate,
+  formatTimelineLabel,
+  monthBucketKey,
+  createTimelineXScale,
+} from "./dates.js";
+import { nodeMatchesLanguageFilter } from "./languages.js";
 
 const DIM_OPACITY = 0.14;
 const NEIGHBOUR_OPACITY = 0.78;
+const VIEW_PAD = 48;
 
 const EDGE_STYLE = {
-  dependency: { dash: "6 4", marker: "arrow-dep" },
-  reliant: { dash: null, marker: "arrow-rel" },
-  thematic: { dash: "2 5", marker: "arrow-theme" },
+  dependency: { dash: "6 4", markerEnd: "arrow-dep", markerStart: null },
+  reliant: { dash: null, markerEnd: "arrow-rel", markerStart: null },
+  thematic: { dash: "2 5", markerEnd: "arrow-theme", markerStart: "arrow-theme-start" },
 };
 
 /**
@@ -37,24 +45,11 @@ export function createNetworkView(container, graph, options) {
     .attr("class", "graph-backdrop")
     .attr("fill", "transparent")
     .attr("pointer-events", "all");
+
   const defs = svg.append("defs");
+  setupMarkers(defs);
 
-  for (const [type, style] of Object.entries(EDGE_STYLE)) {
-    defs
-      .append("marker")
-      .attr("id", style.marker)
-      .attr("viewBox", "0 -4 8 8")
-      .attr("refX", 16)
-      .attr("refY", 0)
-      .attr("markerWidth", 6)
-      .attr("markerHeight", 6)
-      .attr("orient", "auto")
-      .append("path")
-      .attr("d", "M0,-4L8,0L0,4")
-      .attr("fill", palette.sea);
-  }
-
-  const islandLayer = zoomLayer.append("g").attr("class", "island-layer");
+  const timelineLayer = zoomLayer.append("g").attr("class", "timeline-layer");
   const linkLayer = zoomLayer.append("g").attr("class", "link-layer");
   const compoundLayer = zoomLayer.append("g").attr("class", "compound-layer");
   const nodeLayer = zoomLayer.append("g").attr("class", "node-layer");
@@ -64,6 +59,11 @@ export function createNetworkView(container, graph, options) {
   let selectedId = null;
   let searchQuery = "";
   let matchedIds = new Set();
+  let degreesCache = new Map();
+
+  let linkSelection;
+  let nodeSelection;
+  let labelSelection;
 
   const zoom = d3
     .zoom()
@@ -73,37 +73,23 @@ export function createNetworkView(container, graph, options) {
     });
 
   svg.call(zoom).on("dblclick.zoom", null);
-
   zoomLayer.select("rect.graph-backdrop").on("click", () => selectNode(null));
 
   function getState() {
     return options.getState();
   }
 
-  function visibleNodeSet() {
-    const { showProject, showInternal } = getState();
-    const ids = new Set();
-    for (const n of graph.nodes) {
-      if (n.category === "Project" && !showProject) continue;
-      if (n.category === "Internal" && !showInternal) continue;
-      ids.add(n.id);
-    }
-    return ids;
-  }
-
-  function activeGraph() {
-    const visible = visibleNodeSet();
-    const nodes = graph.nodes.filter((n) => visible.has(n.id));
-    const nodeIds = new Set(nodes.map((n) => n.id));
-    const edges = graph.edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-    return { nodes, edges };
+  function graphData() {
+    return { nodes: graph.nodes, edges: graph.edges };
   }
 
   function degreeMap(nodes, edges) {
     const map = new Map(nodes.map((n) => [n.id, 0]));
     for (const e of edges) {
-      map.set(e.source, (map.get(e.source) || 0) + 1);
-      map.set(e.target, (map.get(e.target) || 0) + 1);
+      const s = e.source.id || e.source;
+      const t = e.target.id || e.target;
+      map.set(s, (map.get(s) || 0) + 1);
+      map.set(t, (map.get(t) || 0) + 1);
     }
     return map;
   }
@@ -113,8 +99,10 @@ export function createNetworkView(container, graph, options) {
     if (!nodeId) return set;
     set.add(nodeId);
     for (const e of edges) {
-      if (e.source === nodeId) set.add(e.target);
-      if (e.target === nodeId) set.add(e.source);
+      const s = e.source.id || e.source;
+      const t = e.target.id || e.target;
+      if (s === nodeId) set.add(t);
+      if (t === nodeId) set.add(s);
     }
     return set;
   }
@@ -155,24 +143,45 @@ export function createNetworkView(container, graph, options) {
     if (!node || node.x == null) return;
     const t = d3.zoomTransform(svg.node());
     const k = t.k;
-    const tx = width() / 2 - node.x * k;
-    const ty = height() / 2 - node.y * k;
-    svg.transition().duration(350).call(
-      zoom.transform,
-      d3.zoomIdentity.translate(tx, ty).scale(k)
-    );
+    const bias = 0.35;  // 0 no pan, 1 full centre
+    const tx = t.x + (width() / 2 - node.x * k - t.x) * bias;
+    const ty = t.y + (height() / 2 - node.y * k - t.y) * bias;
+    svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
   }
 
-  function linkTier(link, neighbours, categoryDimmed) {
-    if (categoryDimmed) return "dim";
+  function categoryHidden(node) {
+    const { showProject, showInternal } = getState();
+    if (node.category === "Project" && !showProject) return true;
+    if (node.category === "Internal" && !showInternal) return true;
+    return false;
+  }
+
+  function languageHidden(node) {
+    const { selectedLanguages, languageCount } = getState();
+    if (!selectedLanguages || !languageCount) return false;
+    return !nodeMatchesLanguageFilter(node, selectedLanguages, languageCount);
+  }
+
+  function nodeDimmed(node) {
+    return categoryHidden(node) || languageHidden(node);
+  }
+
+  function linkDimmed(link) {
+    const sId = link.source.id || link.source;
+    const tId = link.target.id || link.target;
+    const s = graph.nodes.find((n) => n.id === sId);
+    const t = graph.nodes.find((n) => n.id === tId);
+    return (s && nodeDimmed(s)) || (t && nodeDimmed(t));
+  }
+
+  function linkTier(link, neighbours) {
+    if (linkDimmed(link)) return "dim";
     if (!selectedId && !searchQuery) return "default";
-    const s = typeof link.source === "object" ? link.source.id : link.source;
-    const t = typeof link.target === "object" ? link.target.id : link.target;
+    const s = link.source.id || link.source;
+    const t = link.target.id || link.target;
     if (selectedId && (s === selectedId || t === selectedId)) return "primary";
     if (selectedId && neighbours.has(s) && neighbours.has(t)) return "secondary";
-    if (searchQuery && matchedIds.size) {
-      if (matchedIds.has(s) || matchedIds.has(t)) return "search";
-    }
+    if (searchQuery && matchedIds.size && (matchedIds.has(s) || matchedIds.has(t))) return "search";
     return "dim";
   }
 
@@ -184,8 +193,8 @@ export function createNetworkView(container, graph, options) {
     return 0.06;
   }
 
-  function nodeOpacity(node, neighbours, categoryHidden) {
-    if (categoryHidden) return 0.12;
+  function nodeOpacity(node, neighbours) {
+    if (nodeDimmed(node)) return 0.12;
     if (selectedId) {
       if (node.id === selectedId) return 1;
       return neighbours.has(node.id) ? NEIGHBOUR_OPACITY : DIM_OPACITY;
@@ -196,18 +205,388 @@ export function createNetworkView(container, graph, options) {
     return 0.9;
   }
 
-  function categoryHidden(node) {
-    const { showProject, showInternal } = getState();
-    if (node.category === "Project" && !showProject) return true;
-    if (node.category === "Internal" && !showInternal) return true;
-    return false;
+  function radiusFor(node, degrees) {
+    const deg = degrees.get(node.id) || 0;
+    const base = 16;
+    return base + Math.sqrt(deg) * 7;
   }
 
-  let linkSelection;
-  let nodeSelection;
-  let labelSelection;
-  let islandSelection;
-  let compoundSelection;
+  function trimLink(x1, y1, x2, y2, r1, r2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist;
+    const uy = dy / dist;
+    return {
+      x1: x1 + ux * r1,
+      y1: y1 + uy * r1,
+      x2: x2 - ux * r2,
+      y2: y2 - uy * r2,
+    };
+  }
+
+  function resolveSimLinks(edges, nodes) {
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    return edges
+      .map((e) => {
+        const sourceId = e.source?.id ?? e.source;
+        const targetId = e.target?.id ?? e.target;
+        const source = byId.get(sourceId);
+        const target = byId.get(targetId);
+        if (!source || !target) return null;
+        return { ...e, source, target };
+      })
+      .filter(Boolean);
+  }
+
+  function updateLinkGeometry() {
+    if (!linkSelection) return;
+    const degrees = degreesCache;
+    linkSelection.each(function (d) {
+      const s = d.source;
+      const t = d.target;
+      if (typeof s === "string" || typeof t === "string" || s?.x == null || t?.x == null) {
+        d3.select(this).attr("opacity", 0);
+        return;
+      }
+      const r1 = radiusFor(s, degrees);
+      const r2 = radiusFor(t, degrees);
+      const line = trimLink(s.x, s.y, t.x, t.y, r1 + 2, r2 + 2);
+      d3.select(this)
+        .attr("opacity", 1)
+        .attr("x1", line.x1)
+        .attr("y1", line.y1)
+        .attr("x2", line.x2)
+        .attr("y2", line.y2);
+    });
+  }
+
+  function clampNodeInView(node) {
+    const w = width();
+    const h = height();
+    const r = radiusFor(node, degreesCache) + 8;
+    const minX = VIEW_PAD + r;
+    const maxX = w - VIEW_PAD - r;
+    const minY = VIEW_PAD + r;
+    const maxY = h - VIEW_PAD - r;
+    node.x = Math.max(minX, Math.min(maxX, node.x));
+    node.y = Math.max(minY, Math.min(maxY, node.y));
+    if (node.fx != null) node.fx = Math.max(minX, Math.min(maxX, node.fx));
+    if (node.fy != null) node.fy = Math.max(minY, Math.min(maxY, node.fy));
+  }
+
+  /** Minimum centre distance so two circular nodes overlap by at most 0% (of the smaller). */
+  function minCenterDistance(r1, r2) {
+    return 2 * (r1 + r2);
+  }
+
+  /**
+   * @returns {{ ticks: { label: string, x: number }[], axisEndX: number }}
+   */
+  function layoutTimelineNodes(dated, xScale, yMid, degrees, rangeLeft, rangeRight) {
+    const buckets = new Map();
+    for (const n of dated) {
+      const key = monthBucketKey(n.startDate) || n.id;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(n);
+    }
+
+    const maxR =
+      dated.reduce((m, n) => Math.max(m, radiusFor(n, degrees)), 16) + 14;
+    const labelMinGap = Math.max(48, maxR * 0.38);
+
+    const bucketMeta = [];
+    for (const [key, group] of buckets) {
+      const refDate = parseStartDate(group[0].startDate);
+      if (!refDate) continue;
+      bucketMeta.push({
+        key,
+        group,
+        naturalX: xScale(refDate.getTime()),
+        label: formatTimelineLabel(refDate),
+      });
+    }
+    bucketMeta.sort((a, b) => a.naturalX - b.naturalX);
+
+    const ticks = [];
+    let prevX = rangeLeft;
+    for (let i = 0; i < bucketMeta.length; i += 1) {
+      const meta = bucketMeta[i];
+      const x =
+        i === 0
+          ? Math.max(meta.naturalX, rangeLeft)
+          : Math.max(meta.naturalX, prevX + labelMinGap);
+      prevX = x;
+      ticks.push({ label: meta.label, x });
+      meta.x = x;
+
+      meta.group.sort((a, b) => a.shortTitle.localeCompare(b.shortTitle));
+      const radii = meta.group.map((n) => radiusFor(n, degrees));
+      let totalGap = 0;
+      for (let j = 0; j < radii.length - 1; j += 1) {
+        totalGap += minCenterDistance(radii[j], radii[j + 1]);
+      }
+      let cy = yMid - totalGap / 2;
+      meta.group.forEach((n, j) => {
+        if (n._userPinned) return;
+        n.fx = x;
+        n.fy = cy;
+        if (j < meta.group.length - 1) {
+          cy += minCenterDistance(radii[j], radii[j + 1]);
+        }
+      });
+    }
+
+    const axisEndX = ticks.length ? ticks[ticks.length - 1].x : rangeRight;
+
+    resolveTimelineCollisions(dated, degrees, yMid);
+
+    return { ticks, axisEndX };
+  }
+
+  function resolveTimelineCollisions(nodes, degrees, yMid) {
+    const maxR = nodes.reduce((m, n) => Math.max(m, radiusFor(n, degrees)), 16);
+    const yMin = VIEW_PAD + maxR;
+    const yMax = height() * 0.72 - maxR;
+
+    for (let pass = 0; pass < 48; pass += 1) {
+      let moved = false;
+      for (let i = 0; i < nodes.length; i += 1) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const a = nodes[i];
+          const b = nodes[j];
+          if (a.fx == null || b.fx == null) continue;
+          const r1 = radiusFor(a, degrees);
+          const r2 = radiusFor(b, degrees);
+          const need = minCenterDistance(r1, r2);
+          const dx = b.fx - a.fx;
+          const dy = (b.fy ?? yMid) - (a.fy ?? yMid);
+          const dist = Math.hypot(dx, dy) || 0.001;
+          if (dist >= need) continue;
+          const push = (need - dist) / 2;
+          const ux = dx / dist;
+          const uy = dy / dist;
+          if (!a._userPinned) {
+            a.fx -= ux * push;
+            a.fy -= uy * push;
+            a.fy = Math.max(yMin, Math.min(yMax, a.fy));
+          }
+          if (!b._userPinned) {
+            b.fx += ux * push;
+            b.fy += uy * push;
+            b.fy = Math.max(yMin, Math.min(yMax, b.fy));
+          }
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+  }
+
+  function layoutUndatedColumn(undated, x, anchorY, degrees) {
+    if (!undated.length) return;
+    undated.sort((a, b) => a.shortTitle.localeCompare(b.shortTitle));
+    const radii = undated.map((n) => radiusFor(n, degrees));
+    let totalGap = 0;
+    for (let j = 0; j < radii.length - 1; j += 1) {
+      totalGap += minCenterDistance(radii[j], radii[j + 1]);
+    }
+    let cy = anchorY - totalGap / 2;
+    undated.forEach((n, j) => {
+      if (n._userPinned) return;
+      n.fx = x;
+      n.fy = cy;
+      if (j < undated.length - 1) {
+        cy += minCenterDistance(radii[j], radii[j + 1]);
+      }
+    });
+  }
+
+  const TIMELINE_ARROW_PAD = 24;
+  const UNDATED_SEPARATION = 56;
+
+  function renderTimelineAxis(ticks, axisY, axisEndX, rangeLeft, undatedX, hasUndated) {
+    timelineLayer.selectAll("*").remove();
+
+    if (ticks.length) {
+      const x0 = Math.min(rangeLeft, ticks[0].x);
+      const x1 = axisEndX;
+
+      timelineLayer
+        .append("line")
+        .attr("class", "timeline-axis")
+        .attr("x1", x0)
+        .attr("y1", axisY)
+        .attr("x2", x1 + TIMELINE_ARROW_PAD)
+        .attr("y2", axisY);
+
+      timelineLayer
+        .append("path")
+        .attr("class", "timeline-arrow")
+        .attr("d", `M${x1 + TIMELINE_ARROW_PAD},${axisY} l-10,-5 l0,10 z`);
+
+      for (const { label, x } of ticks) {
+        timelineLayer
+          .append("line")
+          .attr("class", "timeline-tick")
+          .attr("x1", x)
+          .attr("y1", axisY - 4)
+          .attr("x2", x)
+          .attr("y2", axisY + 4);
+        timelineLayer
+          .append("text")
+          .attr("class", "timeline-label")
+          .attr("x", x)
+          .attr("y", axisY + 16)
+          .attr("text-anchor", "middle")
+          .text(label);
+      }
+    }
+
+    if (hasUndated && undatedX != null) {
+      const sepX = undatedX - UNDATED_SEPARATION * 0.55;
+      timelineLayer
+        .append("line")
+        .attr("class", "timeline-undated-sep")
+        .attr("x1", sepX)
+        .attr("y1", axisY - 14)
+        .attr("x2", sepX)
+        .attr("y2", axisY + 2);
+      timelineLayer
+        .append("text")
+        .attr("class", "timeline-undated-label")
+        .attr("x", undatedX)
+        .attr("y", axisY + 16)
+        .attr("text-anchor", "middle")
+        .text("No date");
+    }
+  }
+
+  function applyLayout(layoutMode, nodes, edges, degrees) {
+    const w = width();
+    const h = height();
+    const cx = w / 2;
+    const cy = h / 2;
+    const tagList = [...new Set(nodes.flatMap((n) => n.tags))];
+    const tagIndex = new Map(tagList.map((t, i) => [t, i]));
+
+    timelineLayer.selectAll("*").remove();
+
+    for (const n of nodes) {
+      if (!n._userPinned) {
+        n.fx = null;
+        n.fy = null;
+      }
+    }
+
+    if (layoutMode === "timeline") {
+      const dated = nodes.filter((n) => parseStartDate(n.startDate));
+      const undated = nodes.filter((n) => !parseStartDate(n.startDate));
+      dated.sort((a, b) => parseStartDate(a.startDate) - parseStartDate(b.startDate));
+
+      const times = dated.map((n) => parseStartDate(n.startDate));
+      const left = w * 0.06;
+      const datedRight = w * 0.7;
+      const yMid = h * 0.38;
+      const axisY = h * 0.78;
+
+      let axisEndX = datedRight;
+      if (times.length) {
+        const minT = times[0];
+        const maxT = times[times.length - 1];
+        const xScale = createTimelineXScale(minT, maxT, [left, datedRight]);
+        const layout = layoutTimelineNodes(dated, xScale, yMid, degrees, left, datedRight);
+        axisEndX = layout.axisEndX;
+        const undatedX = axisEndX + TIMELINE_ARROW_PAD + UNDATED_SEPARATION;
+        const undatedPinned = undated.filter((n) => !n._userPinned);
+        layoutUndatedColumn(undatedPinned, undatedX, h * 0.12, degrees);
+        renderTimelineAxis(
+          layout.ticks,
+          axisY,
+          axisEndX,
+          left,
+          undatedX,
+          undatedPinned.length > 0
+        );
+      } else if (undated.length) {
+        const undatedX = w * 0.82;
+        layoutUndatedColumn(undated.filter((n) => !n._userPinned), undatedX, h * 0.12, degrees);
+        renderTimelineAxis([], axisY, left, left, undatedX, true);
+      }
+    } else if (layoutMode === "theme") {
+      for (const n of nodes) {
+        if (n._userPinned) continue;
+        n.fx = null;
+        n.fy = null;
+      }
+    }
+
+    const simLinks = resolveSimLinks(edges, nodes);
+
+    if (simulation) simulation.stop();
+
+    if (layoutMode === "timeline") {
+      simulation = d3
+        .forceSimulation(nodes)
+        .force("link", null)
+        .force("charge", null)
+        .force("center", null)
+        .force("collide", null)
+        .alpha(0)
+        .stop();
+      nodes.forEach((n) => {
+        if (n.fx != null) n.x = n.fx;
+        if (n.fy != null) n.y = n.fy;
+      });
+      return { simulation, simLinks };
+    }
+
+    simulation = d3
+      .forceSimulation(nodes)
+      .force(
+        "link",
+        d3
+          .forceLink(simLinks)
+          .id((d) => d.id)
+          .distance((l) => (l.type === "thematic" ? 50 : 60))
+          .strength(0.2)
+      )
+      .force("charge", d3.forceManyBody().strength(-90))
+      .force("center", d3.forceCenter(cx, cy).strength(0.06))
+      .force("collide", d3.forceCollide().radius((d) => radiusFor(d, degrees) + 10));
+
+    if (layoutMode === "theme" && tagList.length) {
+      simulation.force(
+        "tagX",
+        d3
+          .forceX((d) => {
+            const t = d.tags[0];
+            if (!t) return cx;
+            const ix = tagIndex.get(t) ?? 0;
+            return w * 0.15 + (ix / Math.max(1, tagList.length - 1)) * w * 0.7;
+          })
+          .strength(0.08)
+      );
+      simulation.force(
+        "tagY",
+        d3
+          .forceY((d) => {
+            const extra = d.tags.length > 1 ? (d.tags.length - 1) * 18 : 0;
+            return cy + extra;
+          })
+          .strength(0.06)
+      );
+    } else {
+      simulation.force("tagX", null);
+      simulation.force("tagY", null);
+    }
+
+    simulation.on("end", () => {
+      simulation.stop();
+    });
+
+    return { simulation, simLinks };
+  }
 
   function renderCompoundBoxes(nodes) {
     const childrenByParent = new Map();
@@ -216,151 +595,40 @@ export function createNetworkView(container, graph, options) {
       if (!childrenByParent.has(n.parentId)) childrenByParent.set(n.parentId, []);
       childrenByParent.get(n.parentId).push(n);
     }
-
     const groups = [...childrenByParent.entries()].map(([parentId, children]) => ({
       parentId,
       children,
     }));
 
-    compoundSelection = compoundSelection?.data(groups, (d) => d.parentId) || compoundLayer.selectAll("g.compound");
-    compoundSelection = compoundLayer.selectAll("g.compound").data(groups, (d) => d.parentId);
+    const compoundSelection = compoundLayer.selectAll("g.compound").data(groups, (d) => d.parentId);
     compoundSelection.exit().remove();
     const enter = compoundSelection.enter().append("g").attr("class", "compound");
     enter.append("rect").attr("class", "compound-box");
     enter.append("text").attr("class", "compound-label");
-    compoundSelection = enter.merge(compoundSelection);
-
-    compoundSelection.each(function (d) {
-      const pts = d.children.filter((c) => c.x != null);
-      if (!pts.length) return;
-      const pad = 28;
-      const xs = pts.map((c) => c.x);
-      const ys = pts.map((c) => c.y);
-      const x0 = Math.min(...xs) - pad;
-      const x1 = Math.max(...xs) + pad;
-      const y0 = Math.min(...ys) - pad;
-      const y1 = Math.max(...ys) + pad;
-      d3.select(this)
-        .select("rect")
-        .attr("x", x0)
-        .attr("y", y0)
-        .attr("width", x1 - x0)
-        .attr("height", y1 - y0);
-      d3.select(this)
-        .select("text")
-        .attr("x", x0 + 8)
-        .attr("y", y0 + 14)
-        .text(d.parentId);
-    });
-  }
-
-  function applyLayoutForces(layoutMode, nodes, edges, degrees) {
-    const w = width();
-    const h = height();
-    const cx = w / 2;
-    const cy = h / 2;
-    const tagList = [...new Set(nodes.flatMap((n) => n.tags))];
-    const tagIndex = new Map(tagList.map((t, i) => [t, i]));
-
-    const isolated = nodes.filter((n) => (degrees.get(n.id) || 0) === 0);
-    const connected = nodes.filter((n) => (degrees.get(n.id) || 0) > 0);
-
-    const islandCx = w * 0.88;
-    const islandCy = h * 0.82;
-    const islandR = Math.min(w, h) * 0.12;
-
-    if (layoutMode === "timeline") {
-      const dated = nodes.filter((n) => n.startDate);
-      const undated = nodes.filter((n) => !n.startDate);
-      const parse = (d) => new Date(d.startDate);
-      dated.sort((a, b) => parse(a) - parse(b));
-
-      const left = w * 0.08;
-      const right = w * 0.72;
-      const yMid = h * 0.5;
-      dated.forEach((n, i) => {
-        const t = dated.length <= 1 ? 0.5 : i / (dated.length - 1);
-        n.fx = left + t * (right - left);
-        n.fy = yMid + (i % 2 === 0 ? -40 : 40);
+    compoundSelection
+      .merge(enter)
+      .each(function (d) {
+        const pts = d.children.filter((c) => c.x != null);
+        if (!pts.length) return;
+        const pad = 28;
+        const xs = pts.map((c) => c.x);
+        const ys = pts.map((c) => c.y);
+        const x0 = Math.min(...xs) - pad;
+        const x1 = Math.max(...xs) + pad;
+        const y0 = Math.min(...ys) - pad;
+        const y1 = Math.max(...ys) + pad;
+        d3.select(this)
+          .select("rect")
+          .attr("x", x0)
+          .attr("y", y0)
+          .attr("width", x1 - x0)
+          .attr("height", y1 - y0);
+        d3.select(this)
+          .select("text")
+          .attr("x", x0 + 8)
+          .attr("y", y0 + 14)
+          .text(d.parentId);
       });
-      undated.forEach((n, i) => {
-        n.fx = w * 0.86;
-        n.fy = h * 0.25 + i * 36;
-      });
-      connected.forEach((n) => {
-        if ((degrees.get(n.id) || 0) > 0 && !n.startDate) {
-          n.fx = null;
-          n.fy = null;
-        }
-      });
-    } else if (layoutMode === "theme") {
-      nodes.forEach((n) => {
-        n.fx = null;
-        n.fy = null;
-        if (!n.tags.length) return;
-        const ix = tagList.length ? tagIndex.get(n.tags[0]) / tagList.length : 0.5;
-        const angle = ix * Math.PI * 2;
-        n.vx = (n.vx || 0) + Math.cos(angle) * 0.4;
-        n.vy = (n.vy || 0) + Math.sin(angle) * 0.4;
-      });
-    } else {
-      nodes.forEach((n) => {
-        if ((degrees.get(n.id) || 0) > 0) {
-          n.fx = null;
-          n.fy = null;
-        }
-      });
-    }
-
-    const simNodes = nodes;
-    const simLinks = edges.map((e) => ({ ...e }));
-
-    if (simulation) simulation.stop();
-
-    simulation = d3
-      .forceSimulation(simNodes)
-      .force(
-        "link",
-        d3
-          .forceLink(simLinks)
-          .id((d) => d.id)
-          .distance((l) => (l.type === "thematic" ? 90 : 110))
-          .strength(0.1)
-      )
-      .force("charge", d3.forceManyBody().strength(-320))
-      .force("center", d3.forceCenter(cx, cy))
-      .force("collide", d3.forceCollide().radius((d) => radiusFor(d, degrees) + 12));
-
-    if (layoutMode === "theme" && tagList.length) {
-      const tagListRef = tagList;
-      simulation.force(
-        "tagX",
-        d3.forceX((d) => {
-          const t = d.tags[0];
-          if (!t) return cx;
-          const ix = tagIndex.get(t) ?? 0;
-          return w * 0.15 + (ix / Math.max(1, tagListRef.length - 1)) * w * 0.7;
-        }).strength(0.08)
-      );
-      simulation.force(
-        "tagY",
-        d3.forceY((d) => {
-          const extra = d.tags.length > 1 ? (d.tags.length - 1) * 18 : 0;
-          return cy + extra;
-        }).strength(0.06)
-      );
-    } else {
-      simulation.force("tagX", null);
-      simulation.force("tagY", null);
-    }
-
-    return { simulation, simLinks };
-  }
-
-  function radiusFor(node, degrees) {
-    const deg = degrees.get(node.id) || 0;
-    const base = 16;
-    return base + Math.sqrt(deg) * 7;
   }
 
   function ensurePatterns(nodes) {
@@ -369,7 +637,12 @@ export function createNetworkView(container, graph, options) {
       const pid = `pattern-${cssSafe(n.id)}`;
       if (defs.select(`#${pid}`).size()) continue;
       const pat = defs.append("pattern").attr("id", pid).attr("patternContentUnits", "objectBoundingBox");
-      pat.append("image").attr("href", `/assets/${n.imagePath}`).attr("width", 1).attr("height", 1).attr("preserveAspectRatio", "xMidYMid slice");
+      pat
+        .append("image")
+        .attr("href", `/assets/${n.imagePath}`)
+        .attr("width", 1)
+        .attr("height", 1)
+        .attr("preserveAspectRatio", "xMidYMid slice");
     }
   }
 
@@ -379,30 +652,26 @@ export function createNetworkView(container, graph, options) {
 
   function updateHighlight() {
     if (!nodeSelection || !linkSelection) return;
-    const { nodes, edges } = activeGraph();
-    const allVisible = new Set(graph.nodes.map((n) => n.id));
+    const { nodes, edges } = graphData();
     const neighbours = neighbourIds(selectedId, edges);
     const colorBy = getState().colorBy;
 
     linkSelection
-      .attr("stroke-opacity", (d) => {
-        const hidden =
-          !allVisible.has(d.source.id || d.source) || !allVisible.has(d.target.id || d.target);
-        const tier = linkTier(d, neighbours, hidden);
-        return linkOpacity(tier);
-      })
-      .attr("stroke-width", (d) => (linkTier(d, neighbours, false) === "primary" ? 2.2 : 1.4));
+      .attr("stroke-opacity", (d) => linkOpacity(linkTier(d, neighbours)))
+      .attr("stroke-width", (d) => (linkTier(d, neighbours) === "primary" ? 2.2 : 1.4));
 
     nodeSelection
       .attr("fill", (d) => nodeColor(d, colorBy))
       .attr("stroke", (d) => (d.id === selectedId ? palette.seaDeep : "#fff"))
       .attr("stroke-width", (d) => (d.id === selectedId ? 3 : 1.5))
-      .attr("opacity", (d) => nodeOpacity(d, neighbours, categoryHidden(d)));
+      .attr("opacity", (d) => nodeOpacity(d, neighbours));
 
-    labelSelection.attr("opacity", (d) => nodeOpacity(d, neighbours, categoryHidden(d)));
+    labelSelection.attr("opacity", (d) => nodeOpacity(d, neighbours));
+    labelSelection.attr("font-size", 14)
 
     renderLegendPanel(nodes, colorBy);
     renderCompoundBoxes(nodes);
+    updateLinkGeometry();
   }
 
   function renderLegendPanel(nodes, colorBy) {
@@ -429,53 +698,54 @@ export function createNetworkView(container, graph, options) {
   function render() {
     layoutBackdrop();
     const { layoutMode } = getState();
-    const { nodes, edges } = activeGraph();
+    const { nodes, edges } = graphData();
     updateSearchMatches(nodes);
-    const degrees = degreeMap(nodes, edges);
-    const maxDeg = Math.max(1, ...degrees.values());
+    degreesCache = degreeMap(nodes, edges);
+    const maxDeg = Math.max(1, ...degreesCache.values());
 
     ensurePatterns(nodes);
 
-    const { simulation: sim, simLinks } = applyLayoutForces(layoutMode, nodes, edges, degrees);
+    const { simulation: sim, simLinks } = applyLayout(layoutMode, nodes, edges, degreesCache);
 
     linkSelection = linkLayer.selectAll("line.link").data(simLinks, (d) => d.id);
     linkSelection.exit().remove();
-    const linkEnter = linkSelection
-      .enter()
-      .append("line")
-      .attr("class", (d) => `link link-${d.type}`);
+    const linkEnter = linkSelection.enter().append("line").attr("class", (d) => `link link-${d.type}`);
     linkSelection = linkEnter.merge(linkSelection);
 
     linkSelection
       .attr("stroke", palette.sea)
       .attr("stroke-dasharray", (d) => EDGE_STYLE[d.type]?.dash || null)
-      .attr("marker-end", (d) => (d.undirected ? null : `url(#${EDGE_STYLE[d.type].marker})`))
-      .attr("marker-start", (d) =>
-        d.undirected ? `url(#${EDGE_STYLE[d.type].marker})` : null
-      );
+      .attr("marker-end", (d) => {
+        const m = EDGE_STYLE[d.type]?.markerEnd;
+        return m ? `url(#${m})` : null;
+      })
+      .attr("marker-start", (d) => {
+        const m = EDGE_STYLE[d.type]?.markerStart;
+        return m ? `url(#${m})` : null;
+      });
 
     nodeSelection = nodeLayer.selectAll("g.node").data(nodes, (d) => d.id);
     nodeSelection.exit().remove();
-    const nodeEnter = nodeSelection.enter().append("g").attr("class", "node").call(bindDrag(sim));
+    const nodeEnter = nodeSelection.enter().append("g").attr("class", "node");
     nodeEnter.append("circle").attr("class", "node-bg");
     nodeEnter.append("circle").attr("class", "node-fill");
     nodeEnter.append("title");
     nodeSelection = nodeEnter.merge(nodeSelection);
+    attachDragBehavior(nodeSelection, layoutMode);
 
     nodeSelection
       .select("circle.node-bg")
-      .attr("r", (d) => radiusFor(d, degrees) + 3)
+      .attr("r", (d) => radiusFor(d, degreesCache) + 3)
       .attr("fill", (d) => (d.imagePath ? `url(#pattern-${cssSafe(d.id)})` : "transparent"))
       .attr("opacity", 0.35);
 
     nodeSelection
       .select("circle.node-fill")
-      .attr("r", (d) => radiusFor(d, degrees))
+      .attr("r", (d) => radiusFor(d, degreesCache))
       .attr("fill", (d) => nodeColor(d, getState().colorBy))
       .attr("fill-opacity", (d) => (d.imagePath ? 0.72 : 1));
 
     nodeSelection.select("title").text((d) => d.title);
-
     nodeSelection.on("click", (event, d) => {
       event.stopPropagation();
       selectNode(d.id);
@@ -491,19 +761,25 @@ export function createNetworkView(container, graph, options) {
       .attr("pointer-events", "none");
     labelSelection = labelEnter.merge(labelSelection);
     labelSelection
-      .attr("dy", (d) => radiusFor(d, degrees) + 14)
+      .attr("dy", (d) => radiusFor(d, degreesCache) + 16)
       .text((d) => d.shortTitle);
 
     sim.on("tick", () => {
-      linkSelection
-        .attr("x1", (d) => d.source.x)
-        .attr("y1", (d) => d.source.y)
-        .attr("x2", (d) => d.target.x)
-        .attr("y2", (d) => d.target.y);
+      if (getState().layoutMode !== "timeline") {
+        nodes.forEach(clampNodeInView);
+      }
       nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
       labelSelection.attr("x", (d) => d.x).attr("y", (d) => d.y);
+      updateLinkGeometry();
       renderCompoundBoxes(nodes);
     });
+
+    if (getState().layoutMode === "timeline") {
+      nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
+      labelSelection.attr("x", (d) => d.x).attr("y", (d) => d.y);
+      updateLinkGeometry();
+      renderCompoundBoxes(nodes);
+    }
 
     updateHighlight();
 
@@ -513,31 +789,49 @@ export function createNetworkView(container, graph, options) {
     }
   }
 
-  function bindDrag(sim) {
+  function attachDragBehavior(selection, layoutMode) {
+    if (layoutMode === "timeline") {
+      selection.on(".drag", null).style("cursor", "pointer");
+      return;
+    }
+    selection.style("cursor", "grab").call(bindDrag());
+  }
+
+  function bindDrag() {
     return d3
       .drag()
       .on("start", (event, d) => {
-        if (!event.active) sim.alphaTarget(0.2).restart();
+        event.sourceEvent?.stopPropagation?.();
+        if (simulation) simulation.stop();
         d.fx = d.x;
         d.fy = d.y;
       })
       .on("drag", (event, d) => {
         d.fx = event.x;
         d.fy = event.y;
+        d.x = event.x;
+        d.y = event.y;
+        clampNodeInView(d);
+        nodeSelection?.attr("transform", (n) => `translate(${n.x},${n.y})`);
+        labelSelection?.attr("x", (n) => n.x).attr("y", (n) => n.y);
+        updateLinkGeometry();
+        renderCompoundBoxes(graph.nodes);
       })
       .on("end", (event, d) => {
-        if (!event.active) sim.alphaTarget(0);
-        if (getState().layoutMode !== "timeline") {
-          d.fx = null;
-          d.fy = null;
-        };
-        simulation.stop()
+        d.fx = event.x;
+        d.fy = event.y;
+        d._userPinned = true;
+        clampNodeInView(d);
       });
   }
 
   function setSearch(query) {
     searchQuery = String(query || "").trim().toLowerCase();
-    updateSearchMatches(activeGraph().nodes);
+    updateSearchMatches(graphData().nodes);
+    updateHighlight();
+  }
+
+  function refreshFilters() {
     updateHighlight();
   }
 
@@ -551,6 +845,31 @@ export function createNetworkView(container, graph, options) {
     render,
     setSearch,
     selectNode,
+    refreshFilters,
     resize,
   };
+}
+
+function setupMarkers(defs) {
+  const arrowPath = "M0,-4L8,0L0,4";
+  const specs = [
+    { id: "arrow-dep", path: arrowPath },
+    { id: "arrow-rel", path: arrowPath },
+    { id: "arrow-theme", path: arrowPath },
+    { id: "arrow-theme-start", path: "M8,-4L0,0L8,4" },
+  ];
+  for (const spec of specs) {
+    defs
+      .append("marker")
+      .attr("id", spec.id)
+      .attr("viewBox", "0 -4 8 8")
+      .attr("refX", 7)
+      .attr("refY", 0)
+      .attr("markerWidth", 5)
+      .attr("markerHeight", 5)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", spec.path)
+      .attr("fill", palette.sea);
+  }
 }
