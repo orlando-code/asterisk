@@ -1,21 +1,21 @@
-﻿Title,Short title,Status,Public,Duration,Collaborators,Language,Category,Tags,Links,Description,URL,Image path
-Earth Compress,Earth Compress,Early,TRUE,36,,,Project,,Earth Compress TO (Clouds↑↓ & IRIS),Revolutionising downstream impact by data encoding at source,,
-Clouds Decoded,Complete,Complete,TRUE,,,Python,Project,"clouds,",,Tools for extracting and analysing physical cloud properties from Sentinel-2 imagery.,https://github.com/asterisk-labs/clouds-decoded,
-Clouds from Above and Below,Clouds↑↓,Commencing,FALSE,48,The Cloud Appreciation Society,,Project,"clouds,citizen science,remote sensing,climate,weather,energy,outreach",Clouds Decoded BOTH Clouds↑↓,Improving understanding of cloud dynamics using coincident satellite and ground photos,,
-IRIS,IRIS,Active,FALSE,6,ESA phi-lab,,Project,"ML,multispectral,TESSERA,AlphaEarth,natural language,embeddings",,Natural language and vector-similarity annotation of EO embeddings,,
-ThunderTrace,ThunderTrace,Commencing,FALSE,36,AfriClimate AI,,Project,"Africa,clouds,",Clouds Decoded TO ThunderTrace ,Improving prediction of mesoscale convective system-driven flashfloods across Africa,,
-RainCheck,RainCheck,Potential,FALSE,,Professor Rama Govindarajan,,Project,"UK,India",Clouds Decoded TO RainCheck,When will the rain come? And why?,,
-ORBIS: Spherical Projections for Copernicus,ORBIS,Potential,FALSE,,"ESA,Development Seed,National Oceanography Centre",,Project,,ORBIS BOTH Earth Compress,Which wins? Spherical or UTM?,,
-Major TOM,Major TOM,Complete,TRUE,,,Python,Internal,,,"A standard for curating, sharing and combining large-scale EO datasets.",https://github.com/ESA-PhiLab/Major-TOM/,major_tom.png
-TACO,TACO,Announced,TRUE,,,"Python,R,Julia,JavaScript",Internal,,,The TACO specification and tooling for AI-ready Earth observation datasets.,https://github.com/asterisk-labs/taco,taco.svg
-CoZIP,CoZIP,Complete,TRUE,,,C,Internal,,CoZIP BOTH Earth Compress,"Cloud-Optimized ZIP: read a ZIP archive like a table, with range requests instead of full downloads.",https://github.com/asterisk-labs/cozip,
-CoZIP Reader,CoZIP Reader,Complete,TRUE,,,C++,Internal,,CoZIP TO CoZIP Reader,Reference reader for Cloud-Optimized ZIP archives.,https://github.com/asterisk-labs/cozip_reader,
-RUMI,RUMI,Early,TRUE,,,"C++,Python,C",Internal,,,A GeoTIFF profile for AI4EO training data.,https://github.com/asterisk-labs/rumi,rumi.svg
-GeoZL,GeoZL,Active,TRUE,,,,Internal,,GeoZL DEPENDENCY RUMI,Geospatial codec extensions for OpenZL — domain-aware compression for raster data.,https://github.com/asterisk-labs/geozl,
-Karu,Karu,Complete,TRUE,,,C++,Internal,,GeoZL DEPENDENCY Karu,"Batched byte-range reads from local files, HTTP, S3, GCS, Azure, Hugging Face and Source Cooperative.",https://github.com/asterisk-labs/karu,
-BetaEarth,BetaEarth,Complete,TRUE,,,Python,Internal,,,Embedding Sentinel-2 and Sentinel-1 with a Little Help of AlphaEarth,https://github.com/asterisk-labs/beta-earth,beta_earth.png
-Glue,Glue,Announced,TRUE,,,,Internal,,,Glue connects any modality of Earth observation to language.,https://github.com/asterisk-labs/glue,
-AsteriskRegistry,AsteriskRegistry,Complete,TRUE,,,,Internal,,,Julia package registry for Asterisk Labs packages.,https://github.com/asterisk-labs/asterisk-labs.r-universe.dev,
-Asterisk Labs R Universe.dev,asteRisk,Complete,TRUE,,,,Internal,,,R package universe for Asterisk Labs packages.,https://github.com/asterisk-labs/asterisk-labs.r-universe.dev,
-Community Extensions,Community Extensions,Complete,TRUE,,,,Internal,,,Our DuckDB community extensions (fork of duckdb/community-extensions).,https://github.com/asterisk-labs/community-extensions,
-asterisk-labs.github.io,Website,Complete,TRUE,,,,Internal,,,Website source.,https://github.com/asterisk-labs/asterisk-labs.github.io,
+﻿Title,Short title,Status,Public,Duration,Start date,Collaborators,Language,Category,Tags,Links,Description,URL,Image path
+Earth Compress,Earth Compress,Early,TRUE,36,Jun-26,,,Project,,Earth Compress TO (Clouds↑↓ & IRIS),Revolutionising downstream impact by data encoding at source,,
+Clouds Decoded,Clouds Decoded,Complete,TRUE,,Feb-25,,Python,Project,"clouds,",,Tools for extracting and analysing physical cloud properties from Sentinel-2 imagery.,https://github.com/asterisk-labs/clouds-decoded,
+Clouds from Above and Below,Clouds↑↓,Commencing,FALSE,48,Oct-26,The Cloud Appreciation Society,,Project,"clouds,citizen science,remote sensing,climate,weather,energy,outreach",Clouds Decoded BOTH Clouds↑↓,Improving understanding of cloud dynamics using coincident satellite and ground photos,,
+IRIS,IRIS,Active,FALSE,6,Jan-20,ESA phi-lab,,Project,"ML,multispectral,TESSERA,AlphaEarth,natural language,embeddings",,Natural language and vector-similarity annotation of EO embeddings,,
+ThunderTrace,ThunderTrace,Commencing,FALSE,36,Sep-26,AfriClimate AI,,Project,"Africa,clouds,",Clouds Decoded TO ThunderTrace ,Improving prediction of mesoscale convective system-driven flashfloods across Africa,,
+RainCheck,RainCheck,Potential,FALSE,,,Professor Rama Govindarajan,,Project,"UK,India",Clouds Decoded TO RainCheck,When will the rain come? And why?,,
+ORBIS: Spherical Projections for Copernicus,ORBIS,Potential,FALSE,,,"ESA,Development Seed,National Oceanography Centre",,Project,,ORBIS BOTH Earth Compress,Which wins? Spherical or UTM?,,
+Major TOM,Major TOM,Complete,TRUE,,Feb-24,,Python,Internal,,,"A standard for curating, sharing and combining large-scale EO datasets.",https://github.com/ESA-PhiLab/Major-TOM/,major_tom.png
+TACO,TACO,Announced,TRUE,,Apr-26,,"Python,R,Julia,JavaScript",Internal,,,The TACO specification and tooling for AI-ready Earth observation datasets.,https://github.com/asterisk-labs/taco,taco.svg
+CoZIP,CoZIP,Complete,TRUE,,Mar-26,,C,Internal,,CoZIP BOTH Earth Compress,"Cloud-Optimized ZIP: read a ZIP archive like a table, with range requests instead of full downloads.",https://github.com/asterisk-labs/cozip,
+CoZIP Reader,CoZIP Reader,Complete,TRUE,,Apr-26,,C++,Internal,,CoZIP TO CoZIP Reader,Reference reader for Cloud-Optimized ZIP archives.,https://github.com/asterisk-labs/cozip_reader,
+RUMI,RUMI,Early,TRUE,,May-26,,"C++,Python,C",Internal,,,A GeoTIFF profile for AI4EO training data.,https://github.com/asterisk-labs/rumi,rumi.svg
+GeoZL,GeoZL,Active,TRUE,,Jun-26,,,Internal,,GeoZL DEPENDENCY RUMI,Geospatial codec extensions for OpenZL — domain-aware compression for raster data.,https://github.com/asterisk-labs/geozl,
+Karu,Karu,Complete,TRUE,,Sep-26,,C++,Internal,,GeoZL DEPENDENCY Karu,"Batched byte-range reads from local files, HTTP, S3, GCS, Azure, Hugging Face and Source Cooperative.",https://github.com/asterisk-labs/karu,
+BetaEarth,BetaEarth,Complete,TRUE,,May-26,,Python,Internal,,,Embedding Sentinel-2 and Sentinel-1 with a Little Help of AlphaEarth,https://github.com/asterisk-labs/beta-earth,beta_earth.png
+Glue,Glue,Announced,TRUE,,,,,Internal,,,Glue connects any modality of Earth observation to language.,https://github.com/asterisk-labs/glue,
+AsteriskRegistry,AsteriskRegistry,Complete,TRUE,,May-26,,,Internal,,,Julia package registry for Asterisk Labs packages.,https://github.com/asterisk-labs/asterisk-labs.r-universe.dev,
+Asterisk Labs R Universe.dev,asteRisk,Complete,TRUE,,Apr-26,,,Internal,,,R package universe for Asterisk Labs packages.,https://github.com/asterisk-labs/asterisk-labs.r-universe.dev,
+Community Extensions,Community Extensions,Complete,TRUE,,Jun-26,,,Internal,,,Our DuckDB community extensions (fork of duckdb/community-extensions).,https://github.com/asterisk-labs/community-extensions,
+asterisk-labs.github.io,Website,Complete,TRUE,,Sep-24,,,Internal,,,Website source.,https://github.com/asterisk-labs/asterisk-labs.github.io,
