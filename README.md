@@ -30,3 +30,12 @@ npm run preview
 ## Stack
 
 Vite + D3 v7 + Papa Parse. Interaction patterns (selection dimming, zoom, drag) follow the same ideas as `explore-icrs-2026/js/network.js`.
+
+
+## Icons
+
+Child icons courtesy of Icons8:
+- <a target="_blank" href="https://icons8.com/icon/lOqoeP2Zy02f/google-colab">Google Colab</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+- <a target="_blank" href="https://icons8.com/icon/RvmjJZghUFKa/paper">Paper</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+- <a target="_blank" href="https://icons8.com/icon/3685/globe">Globe</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+- <a target="_blank" href="https://icons8.com/icon/37325/youtube-play">Youtube Play</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
