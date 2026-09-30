@@ -5,6 +5,7 @@
 export const NETWORK_SEEDS = {
   "Earth Compress": { tier: 0, slot: 0.5 },
   ORBIS: { tier: 1, slot: 0.18 },
+  "EC-Benchmark": { tier: 1, slot: 0.34 },
   "Clouds↑↓": { tier: 1, slot: 0.5 },
   IRIS: { tier: 1, slot: 0.82 },
   "Clouds Decoded": { tier: 2, slot: 0.22 },
@@ -18,7 +19,6 @@ export const NETWORK_SEEDS = {
   "Major TOM": { tier: 4, slot: 0.07 },
   BetaEarth: { tier: 4, slot: 0.17 },
   TACO: { tier: 4, slot: 0.27 },
-  "EC-Benchmark": { tier: 4, slot: 0.37 },
   Glue: { tier: 4, slot: 0.47 },
   Website: { tier: 4, slot: 0.62 },
   asteRisk: { tier: 4, slot: 0.72 },
