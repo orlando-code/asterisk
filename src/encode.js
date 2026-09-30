@@ -88,3 +88,26 @@ export function escapeHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+
+/**
+ * Escape plain text and turn `[label](https://…)` segments into safe links.
+ * @param {string} raw
+ */
+export function formatMarkdownLinksHtml(raw) {
+  const text = String(raw ?? "");
+  if (!text) return "";
+  let html = "";
+  let last = 0;
+  for (const match of text.matchAll(MARKDOWN_LINK_RE)) {
+    const index = match.index ?? 0;
+    html += escapeHtml(text.slice(last, index));
+    const label = escapeHtml(match[1]);
+    const href = escapeHtml(match[2]);
+    html += `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    last = index + match[0].length;
+  }
+  html += escapeHtml(text.slice(last));
+  return html;
+}
