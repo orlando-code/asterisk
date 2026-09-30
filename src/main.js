@@ -131,13 +131,28 @@ async function main() {
     view.render();
   });
 
-  document.getElementById("layout-mode")?.addEventListener("change", (e) => {
-    state.layoutMode = e.target.value;
+  const layoutToggle = document.getElementById("layout-toggle");
+  const layoutLabels = document.querySelectorAll(".layout-toggle-label");
+
+  function syncLayoutToggleUi() {
+    const timeline = state.layoutMode === "timeline";
+    layoutToggle?.setAttribute("aria-checked", timeline ? "true" : "false");
+    layoutToggle?.classList.toggle("is-timeline", timeline);
+    layoutLabels.forEach((el) => {
+      el.classList.toggle("is-active", el.dataset.active === state.layoutMode);
+    });
+  }
+
+  layoutToggle?.addEventListener("click", () => {
+    state.layoutMode = state.layoutMode === "timeline" ? "network" : "timeline";
     for (const n of graph.nodes) {
       n._userPinned = false;
     }
+    syncLayoutToggleUi();
     view.render();
   });
+
+  syncLayoutToggleUi();
 
   document.getElementById("filter-project")?.addEventListener("change", (e) => {
     state.showProject = e.target.checked;

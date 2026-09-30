@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Asterisk – project network</title>
+    <title>Asterisk Labs – Project Network</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -49,22 +49,29 @@
           </select>
         </label>
 
-        <label class="field">
+        <div class="field layout-field">
           <span class="field-label">Layout</span>
-          <select id="layout-mode">
-            <option value="network">Network</option>
-            <option value="theme">By theme (tags)</option>
-            <option value="timeline">Timeline</option>
-          </select>
-        </label>
+          <div class="layout-toggle" role="group" aria-label="Layout">
+            <span class="layout-toggle-label" data-active="network">Network</span>
+            <button
+              type="button"
+              id="layout-toggle"
+              class="layout-switch"
+              role="switch"
+              aria-checked="false"
+              aria-labelledby="layout-toggle-labels"
+            >
+              <span class="layout-switch-thumb" aria-hidden="true"></span>
+            </button>
+            <span class="layout-toggle-label" data-active="timeline">Timeline</span>
+          </div>
+        </div>
 
         <fieldset class="field" id="language-fieldset" hidden>
           <legend class="field-label">Languages</legend>
           <div class="lang-actions" style="margin-top: 0.5em;">
             <button type="button" class="btn-small" id="lang-select-all">Select all</button>
             <button type="button" class="btn-small" id="lang-clear-all">Clear all</button>
-          </div>
-   
           </div>
           <div id="language-filters" class="language-filters"></div>
         </fieldset>

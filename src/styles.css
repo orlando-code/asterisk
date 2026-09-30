@@ -143,6 +143,60 @@ select {
   cursor: pointer;
 }
 
+.layout-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-top: 0.15rem;
+}
+
+.layout-toggle-label {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.layout-toggle-label.is-active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.layout-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.layout-switch.is-timeline {
+  background: var(--sea);
+  border-color: var(--sea);
+}
+
+.layout-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.layout-switch.is-timeline .layout-switch-thumb {
+  transform: translateX(1.25rem);
+}
+
 .language-filters {
   display: flex;
   flex-direction: column;
