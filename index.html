@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asterisk — project network</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="banner" aria-label="Site title">
+      <img class="banner-logo" src="/assets/asterisk_logo.png" alt="" width="36" height="36" />
+      <h1 class="banner-title">ASTERISK</h1>
+      <p class="banner-sub">Labs project network</p>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel panel-left" aria-label="Search and filters">
+        <label class="field">
+          <span class="field-label">Search</span>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Title, tags, description…"
+            autocomplete="off"
+          />
+        </label>
+
+        <fieldset class="field">
+          <legend class="field-label">Show categories</legend>
+          <label class="check"><input type="checkbox" id="filter-project" checked /> Projects</label>
+          <label class="check"><input type="checkbox" id="filter-internal" checked /> Internal</label>
+        </fieldset>
+
+        <label class="field">
+          <span class="field-label">Colour by</span>
+          <select id="color-by">
+            <option value="status">Status</option>
+            <option value="category">Category</option>
+            <option value="public">Public</option>
+            <option value="language">Language</option>
+            <option value="duration">Duration (months)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Layout</span>
+          <select id="layout-mode">
+            <option value="network">Network</option>
+            <option value="theme">By theme (tags)</option>
+            <option value="timeline">Timeline</option>
+          </select>
+        </label>
+
+        <div id="legend" class="legend" aria-live="polite"></div>
+        <p id="data-warnings" class="warnings" hidden></p>
+        <p id="graph-summary" class="summary"></p>
+      </aside>
+
+      <section class="graph-stage" aria-label="Project graph">
+        <div id="graph-root" class="graph-root"></div>
+      </section>
+
+      <aside id="detail-panel" class="panel panel-right" hidden aria-label="Node details">
+        <button type="button" id="detail-close" class="btn-ghost">Close</button>
+        <div id="detail-content"></div>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
