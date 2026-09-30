@@ -24,6 +24,9 @@ const NEIGHBOUR_OPACITY = 0.78;
 const VIEW_PAD = 48;
 const CHILD_ICON_SIZE = 30;
 const CHILD_LINK_OPACITY = 0.14;
+// keep arrow outside of halo at both ends
+const NODE_HALO_EXTRA = 3;  
+const ARROW_MARKER_TRIM = 7;
 
 const EDGE_STYLE = {
   dependency: { dash: "6 4", markerEnd: "arrow-dep", markerStart: null },
@@ -70,6 +73,8 @@ export function createNetworkView(container, graph, options) {
   let searchQuery = "";
   let matchedIds = new Set();
   let degreesCache = new Map();
+  /** Min/max main-node radii for label font scaling (updated each render). */
+  let labelRadiusBounds = { minR: 16, maxR: 30 };
 
   let linkSelection;
   let childLinkSelection;
@@ -173,11 +178,9 @@ export function createNetworkView(container, graph, options) {
   function refreshChildDom() {
     syncChildDeliverablePositions(graph.nodes);
     childNodeSelection?.attr("transform", (d) => `translate(${d.x},${d.y})`);
-    labelSelection
-      ?.filter((d) => isChildNode(d))
-      .attr("x", (d) => d.x)
-      .attr("y", (d) => d.y)
-      .attr("opacity", (d) => {
+    const childLabels = labelSelection?.filter((d) => isChildNode(d));
+    syncLabelPositions(childLabels);
+    childLabels?.attr("opacity", (d) => {
         if (nodeDimmed(d)) return 0.12;
         return childLabelVisible(d) ? 0.95 : 0;
       });
@@ -318,6 +321,72 @@ export function createNetworkView(container, graph, options) {
     return base + Math.sqrt(deg) * 7;
   }
 
+  function linkTrimRadius(node, degrees, hasMarker) {
+    const rim = radiusFor(node, degrees) + NODE_HALO_EXTRA;
+    return hasMarker ? rim + ARROW_MARKER_TRIM : rim;
+  }
+
+  function labelFontSize(node, degrees) {
+    if (isChildNode(node)) {
+      return Math.round(Math.max(8, childIconRadius() * 0.58));
+    }
+    const r = radiusFor(node, degrees);
+    const { minR, maxR } = labelRadiusBounds;
+    const span = maxR - minR || 1;
+    const t = (r - minR) / span;
+    return Math.round(11 + t * 9);
+  }
+
+  /** First space only when title is long enough for a two-line label. */
+  function splitShortTitle(shortTitle) {
+    const t = String(shortTitle ?? "");
+    if (t.length <= 15 || !t.includes(" ")) return [t];
+    const space = t.indexOf(" ");
+    return [t.slice(0, space), t.slice(space + 1)];
+  }
+
+  function labelOffsetBelow(node, degrees) {
+    if (isChildNode(node)) return childIconRadius() + 12;
+    const lines = splitShortTitle(node.shortTitle);
+    const fs = labelFontSize(node, degrees);
+    const base = radiusFor(node, degrees) + 14;
+    if (lines.length < 2) return base;
+    return base - fs * 0.35;
+  }
+
+  function bindLabelText(labelSel, degrees) {
+    const lineHeightEm = 1.5;
+    labelSel
+      .style("font-size", (d) => `${labelFontSize(d, degrees)}px`)
+      .style("stroke-width", (d) => `${Math.max(2, labelFontSize(d, degrees) * 0.22)}px`)
+      .attr("dy", (d) => labelOffsetBelow(d, degrees))
+      .each(function (d) {
+        const lines = splitShortTitle(d.shortTitle);
+        const text = d3.select(this);
+        const tspans = text.selectAll("tspan").data(lines);
+        tspans.exit().remove();
+        tspans
+          .enter()
+          .append("tspan")
+          .merge(tspans)
+          .attr("x", d.x ?? 0)
+          .attr("dy", (_, i) => (i === 0 ? 0 : `${lineHeightEm}em`))
+          .text((line) => line);
+      });
+    syncLabelPositions(labelSel);
+  }
+
+  /** Each tspan needs the same x as the parent so lines stack centered (not after prior line). */
+  function syncLabelPositions(labelSel) {
+    labelSel
+      .attr("x", (d) => d.x)
+      .attr("y", (d) => d.y)
+      .each(function (d) {
+        if (d.x == null) return;
+        d3.select(this).selectAll("tspan").attr("x", d.x);
+      });
+  }
+
   function trimLink(x1, y1, x2, y2, r1, r2) {
     const dx = x2 - x1;
     const dy = y2 - y1;
@@ -356,9 +425,10 @@ export function createNetworkView(container, graph, options) {
         d3.select(this).attr("opacity", 0);
         return;
       }
-      const r1 = radiusFor(s, degrees);
-      const r2 = radiusFor(t, degrees);
-      const line = trimLink(s.x, s.y, t.x, t.y, r1 + 2, r2 + 2);
+      const style = EDGE_STYLE[d.type] || {};
+      const r1 = linkTrimRadius(s, degrees, Boolean(style.markerStart));
+      const r2 = linkTrimRadius(t, degrees, Boolean(style.markerEnd));
+      const line = trimLink(s.x, s.y, t.x, t.y, r1, r2);
       d3.select(this)
         .attr("opacity", 1)
         .attr("x1", line.x1)
@@ -878,6 +948,11 @@ export function createNetworkView(container, graph, options) {
     const roots = mainNodes(nodes);
     degreesCache = degreeMap(roots, edges);
     const maxDeg = Math.max(1, ...degreesCache.values());
+    const mainRadii = roots.map((n) => radiusFor(n, degreesCache));
+    labelRadiusBounds = {
+      minR: Math.min(...mainRadii),
+      maxR: Math.max(...mainRadii),
+    };
 
     ensurePatterns(roots);
 
@@ -998,11 +1073,7 @@ export function createNetworkView(container, graph, options) {
       .attr("text-anchor", "middle")
       .attr("pointer-events", "none");
     labelSelection = labelEnter.merge(labelSelection);
-    labelSelection
-      .attr("dy", (d) =>
-        isChildNode(d) ? childIconRadius() + 12 : radiusFor(d, degreesCache) + 16
-      )
-      .text((d) => d.shortTitle);
+    bindLabelText(labelSelection, degreesCache);
 
     sim.on("tick", () => {
       if (getState().layoutMode !== "timeline") {
@@ -1011,7 +1082,7 @@ export function createNetworkView(container, graph, options) {
       syncChildDeliverablePositions(nodes);
       nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
       childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
-      labelSelection.attr("x", (d) => d.x).attr("y", (d) => d.y);
+      syncLabelPositions(labelSelection);
       updateLinkGeometry();
       updateChildLinkGeometry();
       renderCompoundBoxes(nodes);
@@ -1021,7 +1092,7 @@ export function createNetworkView(container, graph, options) {
       syncChildDeliverablePositions(nodes);
       nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
       childNodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
-      labelSelection.attr("x", (d) => d.x).attr("y", (d) => d.y);
+      syncLabelPositions(labelSelection);
       updateLinkGeometry();
       updateChildLinkGeometry();
       renderCompoundBoxes(nodes);
@@ -1064,7 +1135,7 @@ export function createNetworkView(container, graph, options) {
         syncChildDeliverablePositions(graph.nodes);
         nodeSelection?.attr("transform", (n) => `translate(${n.x},${n.y})`);
         childNodeSelection?.attr("transform", (n) => `translate(${n.x},${n.y})`);
-        labelSelection?.attr("x", (n) => n.x).attr("y", (n) => n.y);
+        syncLabelPositions(labelSelection);
         updateLinkGeometry();
         updateChildLinkGeometry();
         renderCompoundBoxes(graph.nodes);
