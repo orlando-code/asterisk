@@ -31,12 +31,12 @@
           />
         </label>
 
-        <fieldset class="field">
+        <!-- <fieldset class="field">
           <legend class="field-label">Show categories</legend>
           <label class="check"><input type="checkbox" id="filter-project" checked /> Projects</label>
           <label class="check"><input type="checkbox" id="filter-internal" checked /> Internal</label>
           <label class="check"><input type="checkbox" id="filter-distribution" checked /> Distribution &amp; infrastructure</label>
-        </fieldset>
+        </fieldset> -->
 
         <label class="field">
           <span class="field-label">Colour by</span>
@@ -60,9 +60,11 @@
 
         <fieldset class="field" id="language-fieldset" hidden>
           <legend class="field-label">Languages</legend>
-          <div class="lang-actions">
+          <div class="lang-actions" style="margin-top: 0.5em;">
             <button type="button" class="btn-small" id="lang-select-all">Select all</button>
             <button type="button" class="btn-small" id="lang-clear-all">Clear all</button>
+          </div>
+   
           </div>
           <div id="language-filters" class="language-filters"></div>
         </fieldset>
