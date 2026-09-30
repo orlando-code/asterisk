@@ -127,6 +127,72 @@ select {
   margin: 0.25rem 0;
 }
 
+.lang-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.btn-small {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+}
+
+.language-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.lang-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lang-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.timeline-axis {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.timeline-arrow {
+  fill: var(--muted);
+}
+
+.timeline-tick {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.timeline-label,
+.timeline-undated-label {
+  font-size: 9px;
+  fill: var(--muted);
+}
+
+.timeline-undated-sep {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.65;
+}
+
 .legend {
   display: flex;
   flex-direction: column;
@@ -221,7 +287,7 @@ select {
 }
 
 .node-label {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   fill: var(--ink);
   stroke: #fff;
