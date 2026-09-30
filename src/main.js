@@ -1,6 +1,6 @@
 import { loadGraph } from "./load-data.js";
 import { createNetworkView } from "./network-view.js";
-import { escapeHtml } from "./encode.js";
+import { escapeHtml, formatMarkdownLinksHtml } from "./encode.js";
 import { collectLanguages, linguistColor } from "./languages.js";
 
 const state = {
@@ -41,7 +41,7 @@ function renderDetail(node) {
       <dt>Language</dt><dd>${node.language ? escapeHtml(node.language) : "–"}</dd>
       <dt>Collaborators</dt><dd>${node.collaborators ? escapeHtml(node.collaborators) : "–"}</dd>
       <dt>Tags</dt><dd>${tags}</dd>
-      <dt>Description</dt><dd>${node.description ? escapeHtml(node.description) : "–"}</dd>
+      <dt>Description</dt><dd class="detail-rich">${node.description ? formatMarkdownLinksHtml(node.description) : "–"}</dd>
       ${
         node.url
           ? `<dt>URL</dt><dd><a href="${escapeHtml(node.url)}" target="_blank" rel="noopener">${escapeHtml(node.url)}</a></dd>`

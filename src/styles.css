@@ -252,6 +252,17 @@ select {
   margin: 0;
 }
 
+.detail-rich a {
+  color: var(--sea);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.detail-rich a:hover {
+  color: var(--sea-deep);
+}
+
 .tag-list {
   margin: 0;
   padding-left: 1.1rem;
